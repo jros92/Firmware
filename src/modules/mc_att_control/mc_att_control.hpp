@@ -44,6 +44,7 @@
 #include <uORB/topics/actuator_controls.h>
 #include <uORB/topics/battery_status.h>
 #include <uORB/topics/manual_control_setpoint.h>
+#include <uORB/topics/manual_control_switches.h>
 #include <uORB/topics/multirotor_motor_limits.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/rate_ctrl_status.h>
@@ -106,6 +107,7 @@ private:
 	void		vehicle_attitude_setpoint_poll();
 	void		vehicle_control_mode_poll();
 	bool		vehicle_manual_poll();
+	void		manual_switches_poll();
 	void		vehicle_motor_limits_poll();
 	bool		vehicle_rates_setpoint_poll();
 	void		vehicle_status_poll();
@@ -120,12 +122,6 @@ private:
 	 * Generate & publish an attitude setpoint from stick inputs
 	 */
 	void		generate_attitude_setpoint(float dt, bool reset_yaw_sp);
-
-	/**
-	 * Get the landing gear state based on the manual control switch position
-	 * @return vehicle_attitude_setpoint_s::LANDING_GEAR_UP or vehicle_attitude_setpoint_s::LANDING_GEAR_DOWN
-	 */
-	float		get_landing_gear_state();
 
 
 	/**
@@ -150,6 +146,7 @@ private:
 	int		_v_control_mode_sub{-1};	/**< vehicle control mode subscription */
 	int		_params_sub{-1};		/**< parameter updates subscription */
 	int		_manual_control_sp_sub{-1};	/**< manual control setpoint subscription */
+	int		_manual_control_switches_sub{-1};	/**< manual control switches subscription */
 	int		_vehicle_status_sub{-1};	/**< vehicle status subscription */
 	int		_motor_limits_sub{-1};		/**< motor limits subscription */
 	int		_battery_status_sub{-1};	/**< battery status subscription */
@@ -203,6 +200,7 @@ private:
 
 	float _man_yaw_sp{0.f};				/**< current yaw setpoint in manual mode */
 	bool _gear_state_initialized{false};		/**< true if the gear state has been initialized */
+	float _landing_gear{vehicle_attitude_setpoint_s::LANDING_GEAR_DOWN};	/**< LANDING GEAR manual handling, default to down */
 
 	DEFINE_PARAMETERS(
 		(ParamFloat<px4::params::MC_ROLL_P>) _roll_p,

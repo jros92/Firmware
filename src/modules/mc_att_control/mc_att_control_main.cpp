@@ -237,6 +237,39 @@ MulticopterAttitudeControl::vehicle_manual_poll()
 }
 
 void
+MulticopterAttitudeControl::manual_switches_poll()
+{
+	bool updated = false;
+
+	// Only switch the landing gear up if we are not landed and if
+	// the user switched from gear down to gear up.
+	// If the user had the switch in the gear up position and took off ignore it
+	// until he toggles the switch to avoid retracting the gear immediately on takeoff.
+	if (_vehicle_land_detected.landed) {
+		_gear_state_initialized = false;
+	}
+
+	orb_check(_manual_control_switches_sub, &updated);
+
+	if (updated) {
+		manual_control_switches_s man_switches;
+
+		if (orb_copy(ORB_ID(manual_control_switches), _manual_control_switches_sub, &man_switches) == PX4_OK) {
+
+			if (man_switches.gear_switch == manual_control_switches_s::SWITCH_POS_ON && _gear_state_initialized) {
+				_landing_gear = vehicle_attitude_setpoint_s::LANDING_GEAR_UP;
+
+			} else if (man_switches.gear_switch == manual_control_switches_s::SWITCH_POS_OFF) {
+				// Switching the gear off does put it into a safe defined state
+				_gear_state_initialized = true;
+
+				_landing_gear = vehicle_attitude_setpoint_s::LANDING_GEAR_DOWN;
+			}
+		}
+	}
+}
+
+void
 MulticopterAttitudeControl::vehicle_attitude_setpoint_poll()
 {
 	/* check if there is a new setpoint */
@@ -396,28 +429,6 @@ MulticopterAttitudeControl::throttle_curve(float throttle_stick_input)
 	}
 }
 
-float
-MulticopterAttitudeControl::get_landing_gear_state()
-{
-	// Only switch the landing gear up if we are not landed and if
-	// the user switched from gear down to gear up.
-	// If the user had the switch in the gear up position and took off ignore it
-	// until he toggles the switch to avoid retracting the gear immediately on takeoff.
-	if (_vehicle_land_detected.landed) {
-		_gear_state_initialized = false;
-	}
-	float landing_gear = vehicle_attitude_setpoint_s::LANDING_GEAR_DOWN; // default to down
-	if (_manual_control_sp.gear_switch == manual_control_setpoint_s::SWITCH_POS_ON && _gear_state_initialized) {
-		landing_gear = vehicle_attitude_setpoint_s::LANDING_GEAR_UP;
-
-	} else if (_manual_control_sp.gear_switch == manual_control_setpoint_s::SWITCH_POS_OFF) {
-		// Switching the gear off does put it into a safe defined state
-		_gear_state_initialized = true;
-	}
-
-	return landing_gear;
-}
-
 void
 MulticopterAttitudeControl::generate_attitude_setpoint(float dt, bool reset_yaw_sp)
 {
@@ -510,7 +521,7 @@ MulticopterAttitudeControl::generate_attitude_setpoint(float dt, bool reset_yaw_
 
 	attitude_setpoint.thrust = throttle_curve(_manual_control_sp.z);
 
-	attitude_setpoint.landing_gear = get_landing_gear_state();
+	attitude_setpoint.landing_gear = _landing_gear;
 	attitude_setpoint.timestamp = hrt_absolute_time();
 	orb_publish_auto(ORB_ID(vehicle_attitude_setpoint), &_vehicle_attitude_setpoint_pub, &attitude_setpoint, nullptr, ORB_PRIO_DEFAULT);
 }
@@ -786,6 +797,7 @@ MulticopterAttitudeControl::run()
 	_v_control_mode_sub = orb_subscribe(ORB_ID(vehicle_control_mode));
 	_params_sub = orb_subscribe(ORB_ID(parameter_update));
 	_manual_control_sp_sub = orb_subscribe(ORB_ID(manual_control_setpoint));
+	_manual_control_switches_sub = orb_subscribe(ORB_ID(manual_control_switches));
 	_vehicle_status_sub = orb_subscribe(ORB_ID(vehicle_status));
 	_motor_limits_sub = orb_subscribe(ORB_ID(multirotor_motor_limits));
 	_battery_status_sub = orb_subscribe(ORB_ID(battery_status));
@@ -871,6 +883,7 @@ MulticopterAttitudeControl::run()
 			sensor_correction_poll();
 			sensor_bias_poll();
 			vehicle_land_detected_poll();
+			manual_switches_poll();
 			const bool manual_control_updated = vehicle_manual_poll();
 			const bool attitude_updated = vehicle_attitude_poll();
 			attitude_dt += dt;
@@ -969,6 +982,7 @@ MulticopterAttitudeControl::run()
 	orb_unsubscribe(_v_control_mode_sub);
 	orb_unsubscribe(_params_sub);
 	orb_unsubscribe(_manual_control_sp_sub);
+	orb_unsubscribe(_manual_control_switches_sub);
 	orb_unsubscribe(_vehicle_status_sub);
 	orb_unsubscribe(_motor_limits_sub);
 	orb_unsubscribe(_battery_status_sub);

@@ -42,6 +42,7 @@
 
 #include "FlightTask.hpp"
 #include <uORB/topics/manual_control_setpoint.h>
+#include <uORB/topics/manual_control_switches.h>
 
 class FlightTaskManual : public FlightTask
 {
@@ -68,6 +69,7 @@ private:
 	void _applyGearSwitch(uint8_t gswitch); /**< Sets gears according to switch */
 
 	uORB::Subscription<manual_control_setpoint_s> *_sub_manual_control_setpoint{nullptr};
+	uORB::Subscription<manual_control_switches_s> *_sub_manual_control_switches{nullptr};
 
 	DEFINE_PARAMETERS_CUSTOM_PARENT(FlightTask,
 					(ParamFloat<px4::params::MPC_HOLD_DZ>) _stick_dz, /**< 0-deadzone around the center for the sticks */

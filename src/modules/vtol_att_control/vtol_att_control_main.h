@@ -64,7 +64,7 @@
 
 #include <uORB/topics/actuator_controls.h>
 #include <uORB/topics/airspeed.h>
-#include <uORB/topics/manual_control_setpoint.h>
+#include <uORB/topics/manual_control_switches.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/tecs_status.h>
 #include <uORB/topics/vehicle_attitude.h>
@@ -164,7 +164,7 @@ private:
 	actuator_controls_s			_actuators_out_1{};	//actuator controls going to the fw mixer (used for elevons)
 
 	airspeed_s 				_airspeed{};			// airspeed
-	manual_control_setpoint_s		_manual_control_sp{}; //manual control setpoint
+	manual_control_switches_s		_manual_control_switches{}; //manual control switches
 	position_setpoint_triplet_s		_pos_sp_triplet{};
 	tecs_status_s				_tecs_status{};
 	vehicle_attitude_s			_v_att{};				//vehicle attitude
