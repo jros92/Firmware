@@ -36,6 +36,7 @@
  * Included Files
  ****************************************************************************/
 
+#include <px4_time.h>
 #include <px4_config.h>
 #include <px4_posix.h>
 
@@ -121,7 +122,7 @@ int test_led(int argc, char *argv[])
 		}
 
 		ledon = !ledon;
-		usleep(60000);
+		px4_usleep(60000);
 	}
 
 	/* Go back to default */

@@ -66,19 +66,19 @@ using namespace time_literals;
 int do_esc_calibration(orb_advert_t *mavlink_log_pub, struct actuator_armed_s* armed)
 {
 	int	return_code = PX4_OK;
-	
+
 #if defined(__PX4_POSIX_OCPOC) || defined(__PX4_POSIX_BBBLUE)
 	hrt_abstime timeout_start = 0;
 	hrt_abstime timeout_wait = 60_s;
 	armed->in_esc_calibration_mode = true;
 	calibration_log_info(mavlink_log_pub, CAL_QGC_DONE_MSG, "begin esc");
 	timeout_start = hrt_absolute_time();
-	
+
 	while (true) {
 		if (hrt_absolute_time() - timeout_start > timeout_wait) {
 			break;
 		}else{
-			usleep(50000);
+			px4_usleep(50000);
 		}
 	}
 
@@ -88,7 +88,7 @@ int do_esc_calibration(orb_advert_t *mavlink_log_pub, struct actuator_armed_s* a
 	if (return_code == OK) {
 		calibration_log_info(mavlink_log_pub, CAL_QGC_DONE_MSG, "esc");
 	}
-		  
+
 	return return_code;
 
 #else
@@ -183,7 +183,7 @@ int do_esc_calibration(orb_advert_t *mavlink_log_pub, struct actuator_armed_s* a
 				}
 			}
 		}
-		usleep(50_ms);
+		px4_usleep(50_ms);
 	}
 
 Out:

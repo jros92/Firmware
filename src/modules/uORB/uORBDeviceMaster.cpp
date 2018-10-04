@@ -340,7 +340,7 @@ void uORB::DeviceMaster::showTop(char **topic_filter, int num_filters)
 				}
 			}
 
-			usleep(200000);
+			px4_usleep(200000);
 		}
 
 #endif

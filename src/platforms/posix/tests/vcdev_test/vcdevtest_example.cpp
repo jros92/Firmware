@@ -254,7 +254,7 @@ int VCDevExample::do_poll(int fd, int timeout, int iterations, int delayms_after
 		}
 
 		if (delayms_after_poll) {
-			usleep(delayms_after_poll * 1000);
+			px4_usleep(delayms_after_poll * 1000);
 		}
 
 		loop_count++;

@@ -42,6 +42,7 @@
  */
 
 #include <px4_config.h>
+#include <px4_time.h>
 #include <ecl/geo/geo.h>
 
 #include <sys/types.h>
@@ -427,7 +428,7 @@ int MPU9250::reset()
 	 *
 	 */
 
-	usleep(110000);
+	px4_usleep(110000);
 
 	// Hold off sampling until done (100 MS will be shortened)
 	state = px4_enter_critical_section();
@@ -457,7 +458,7 @@ int MPU9250::reset_mpu()
 	write_checked_reg(MPUREG_PWR_MGMT_2, 0);
 
 
-	usleep(1000);
+	px4_usleep(1000);
 
 	// Enable I2C bus or Disable I2C bus (recommended on data sheet)
 
