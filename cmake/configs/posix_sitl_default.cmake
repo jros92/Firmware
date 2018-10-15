@@ -17,6 +17,7 @@ set(config_module_list
 	modules/sensors
 
 	platforms/posix/drivers/tonealrmsim
+	platforms/posix/lockstep_scheduler
 
 	#
 	# System commands
