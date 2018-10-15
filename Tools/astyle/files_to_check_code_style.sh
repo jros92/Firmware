@@ -18,4 +18,5 @@ exec find src platforms \
     -path src/modules/micrortps_bridge/micro-CDR -prune -o \
     -path src/modules/systemlib/uthash -prune -o \
     -path src/modules/uavcan/libuavcan -prune -o \
+    -path src/platforms/posix/lockstep_scheduler -prune -o \
     -type f \( -name "*.c" -o -name "*.h" -o -name "*.cpp" -o -name "*.hpp" \) | grep $PATTERN
