@@ -45,7 +45,7 @@
 
 #include "navigator.h"
 
-#include <cfloat>
+#include <float.h>
 #include <sys/stat.h>
 
 #include <dataman/dataman.h>
@@ -234,7 +234,7 @@ Navigator::run()
 		} else if (pret < 0) {
 			/* this is undesirable but not much we can do - might want to flag unhappy status */
 			PX4_ERR("poll error %d, %d", pret, errno);
-			usleep(10000);
+			px4_usleep(10000);
 			continue;
 
 		} else {
@@ -328,7 +328,15 @@ Navigator::run()
 				rep->current.loiter_radius = get_loiter_radius();
 				rep->current.loiter_direction = 1;
 				rep->current.type = position_setpoint_s::SETPOINT_TYPE_LOITER;
-				rep->current.cruising_speed = get_cruising_speed();
+
+				// If no argument for ground speed, use default value.
+				if (cmd.param1 <= 0 || !PX4_ISFINITE(cmd.param1)) {
+					rep->current.cruising_speed = get_cruising_speed();
+
+				} else {
+					rep->current.cruising_speed = cmd.param1;
+				}
+
 				rep->current.cruising_throttle = get_cruising_throttle();
 				rep->current.acceptance_radius = get_acceptance_radius();
 

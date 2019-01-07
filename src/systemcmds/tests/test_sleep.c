@@ -1,5 +1,4 @@
 /****************************************************************************
- * px4/sensors/test_gpio.c
  *
  *  Copyright (C) 2012 PX4 Development Team. All rights reserved.
  *
@@ -36,6 +35,7 @@
  * Included Files
  ****************************************************************************/
 
+#include <px4_time.h>
 #include <px4_config.h>
 #include <px4_defines.h>
 
@@ -58,7 +58,7 @@ int test_sleep(int argc, char *argv[])
 	fflush(stdout);
 
 	for (unsigned int i = 0; i < nsleeps; i++) {
-		usleep(100000);
+		px4_usleep(100000);
 	}
 
 	printf("\t Sleep test successful.\n");

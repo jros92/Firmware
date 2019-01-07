@@ -1447,8 +1447,11 @@ MavlinkReceiver::handle_message_set_attitude_target(mavlink_message_t *msg)
 						att_sp.yaw_sp_move_rate = 0.0f;
 					}
 
+					// TODO: We assume offboard is only used for multicopters which produce thrust along the
+					// body z axis. If we want to support fixed wing as well we need to handle it differently here, e.g.
+					// in that case we should assign att_sp.thrust_body[0]
 					if (!_offboard_control_mode.ignore_thrust) { // dont't overwrite thrust if it's invalid
-						att_sp.thrust = set_attitude_target.thrust;
+						att_sp.thrust_body[2] = -set_attitude_target.thrust;
 					}
 
 					if (_att_sp_pub == nullptr) {
@@ -1472,7 +1475,7 @@ MavlinkReceiver::handle_message_set_attitude_target(mavlink_message_t *msg)
 					}
 
 					if (!_offboard_control_mode.ignore_thrust) { // dont't overwrite thrust if it's invalid
-						rates_sp.thrust = set_attitude_target.thrust;
+						rates_sp.thrust_body[2] = -set_attitude_target.thrust;
 					}
 
 					if (_rates_sp_pub == nullptr) {
@@ -2635,7 +2638,7 @@ MavlinkReceiver::receive_thread(void *arg)
 	if (_mavlink->get_protocol() == UDP || _mavlink->get_protocol() == TCP) {
 		// make sure mavlink app has booted before we start using the socket
 		while (!_mavlink->boot_complete()) {
-			usleep(100000);
+			px4_usleep(100000);
 		}
 
 		fds[0].fd = _mavlink->get_socket_fd();
@@ -2659,7 +2662,7 @@ MavlinkReceiver::receive_thread(void *arg)
 				/* non-blocking read. read may return negative values */
 				if ((nread = ::read(fds[0].fd, buf, sizeof(buf))) < (ssize_t)character_count) {
 					const unsigned sleeptime = character_count * 1000000 / (_mavlink->get_baudrate() / 10);
-					usleep(sleeptime);
+					px4_usleep(sleeptime);
 				}
 			}
 

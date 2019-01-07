@@ -56,6 +56,7 @@
 #include <uORB/topics/vehicle_rates_setpoint.h>
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/vehicle_land_detected.h>
+#include <uORB/topics/landing_gear.h>
 
 /**
  * Multicopter attitude control app start / stop handling function
@@ -109,6 +110,7 @@ private:
 	void		vehicle_motor_limits_poll();
 	bool		vehicle_rates_setpoint_poll();
 	void		vehicle_status_poll();
+	void 		landing_gear_state_poll();
 
 	void		publish_actuator_controls();
 	void		publish_rates_setpoint();
@@ -157,6 +159,7 @@ private:
 	int		_sensor_correction_sub{-1};	/**< sensor thermal correction subscription */
 	int		_sensor_bias_sub{-1};		/**< sensor in-run bias correction subscription */
 	int		_vehicle_land_detected_sub{-1};	/**< vehicle land detected subscription */
+	int		_landing_gear_sub{-1};
 
 	unsigned _gyro_count{1};
 	int _selected_gyro{0};
@@ -165,8 +168,8 @@ private:
 	orb_advert_t	_actuators_0_pub{nullptr};		/**< attitude actuator controls publication */
 	orb_advert_t	_controller_status_pub{nullptr};	/**< controller status publication */
 	orb_advert_t	_vehicle_attitude_setpoint_pub{nullptr};
+	orb_advert_t	_landing_gear_pub{nullptr};
 
-	orb_id_t _rates_sp_id{nullptr};		/**< pointer to correct rates setpoint uORB metadata structure */
 	orb_id_t _actuators_id{nullptr};	/**< pointer to correct actuator controls0 uORB metadata structure */
 
 	bool		_actuators_0_circuit_breaker_enabled{false};	/**< circuit breaker to suppress output */
@@ -183,6 +186,7 @@ private:
 	struct sensor_correction_s		_sensor_correction {};	/**< sensor thermal corrections */
 	struct sensor_bias_s			_sensor_bias {};	/**< sensor in-run bias corrections */
 	struct vehicle_land_detected_s		_vehicle_land_detected {};
+	struct landing_gear_s 			_landing_gear {};
 
 	MultirotorMixer::saturation_status _saturation_status{};
 
@@ -196,8 +200,9 @@ private:
 	matrix::Vector3f _rates_prev_filtered;		/**< angular rates on previous step (low-pass filtered) */
 	matrix::Vector3f _rates_sp;			/**< angular rates setpoint */
 	matrix::Vector3f _rates_int;			/**< angular rates integral error */
-	float _thrust_sp;				/**< thrust setpoint */
+
 	matrix::Vector3f _att_control;			/**< attitude control vector */
+	float		_thrust_sp{0.0f};		/**< thrust setpoint */
 
 	matrix::Dcmf _board_rotation;			/**< rotation matrix for the orientation that the board is mounted */
 
@@ -264,7 +269,9 @@ private:
 		(ParamFloat<px4::params::MPC_MANTHR_MIN>) _man_throttle_min,			/**< minimum throttle for stabilized */
 		(ParamFloat<px4::params::MPC_THR_MAX>) _throttle_max,				/**< maximum throttle for stabilized */
 		(ParamFloat<px4::params::MPC_THR_HOVER>) _throttle_hover,			/**< throttle at which vehicle is at hover equilibrium */
-		(ParamInt<px4::params::MPC_THR_CURVE>) _throttle_curve				/**< throttle curve behavior */
+		(ParamInt<px4::params::MPC_THR_CURVE>) _throttle_curve,				/**< throttle curve behavior */
+
+		(ParamInt<px4::params::MC_AIRMODE>) _airmode
 	)
 
 	matrix::Vector3f _attitude_p;		/**< P gain for attitude control */

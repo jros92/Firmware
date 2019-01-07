@@ -214,10 +214,10 @@ PARAM_DEFINE_FLOAT(MPC_XY_VEL_P, 0.09f);
 /**
  * Integral gain for horizontal velocity error
  *
- * Non-zero value allows to resist wind.
+ * Non-zero value allows to eliminate steady state errors in the presence of disturbances like wind.
  *
  * @min 0.0
- * @max 0.1
+ * @max 3.0
  * @decimal 3
  * @group Multicopter Position Control
  */
@@ -681,22 +681,11 @@ PARAM_DEFINE_INT32(MPC_POS_MODE, 1);
 /**
  * Auto sub-mode.
  *
- * The supported sub-modes are:
- * 0 Direct line tracking, no smoothing
- *
- * 1 Not used
- *
- * 2 Not used
- *
- * 3 Jerk-limited trajectory
- *
  * @value 0 Default line tracking
- * @value 1 N/A
- * @value 2 N/A
- * @value 3 Jerk-limited trajectory
+ * @value 1 Jerk-limited trajectory
  * @group Multicopter Position Control
  */
-PARAM_DEFINE_INT32(MPC_AUTO_MODE, 3);
+PARAM_DEFINE_INT32(MPC_AUTO_MODE, 1);
 
 /**
  * Delay from idle state to arming state.
@@ -729,7 +718,7 @@ PARAM_DEFINE_INT32(MPC_OBS_AVOID, 0);
  * Specifies the heading in Auto.
  *
  * @min 0
- * @max 2
+ * @max 3
  * @value 0 towards waypoint
  * @value 1 towards home
  * @value 2 away from home
@@ -737,3 +726,4 @@ PARAM_DEFINE_INT32(MPC_OBS_AVOID, 0);
  * @group Mission
  */
 PARAM_DEFINE_INT32(MPC_YAW_MODE, 0);
+

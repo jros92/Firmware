@@ -89,7 +89,7 @@ GroundRoverAttitudeControl::~GroundRoverAttitudeControl()
 
 		do {
 			/* wait 20ms */
-			usleep(20000);
+			px4_usleep(20000);
 
 			/* if we have given up, kill it */
 			if (++i > 50) {
@@ -303,7 +303,7 @@ GroundRoverAttitudeControl::task_main()
 					}
 
 					/* throttle passed through if it is finite and if no engine failure was detected */
-					_actuators.control[actuator_controls_s::INDEX_THROTTLE] = _att_sp.thrust;
+					_actuators.control[actuator_controls_s::INDEX_THROTTLE] = _att_sp.thrust_body[0];
 
 					/* scale effort by battery status */
 					if (_parameters.bat_scale_en && _battery_status.scale > 0.0f &&
@@ -403,7 +403,7 @@ int gnd_att_control_main(int argc, char *argv[])
 
 			/* avoid memory fragmentation by not exiting start handler until the task has fully started */
 			while (att_gnd_control::g_control == nullptr || !att_gnd_control::g_control->task_running()) {
-				usleep(50000);
+				px4_usleep(50000);
 				printf(".");
 				fflush(stdout);
 			}

@@ -41,6 +41,24 @@
 
 using namespace matrix;
 
+FlightTaskManualPosition::FlightTaskManualPosition() : _collision_prevention(this)
+{
+
+}
+
+bool FlightTaskManualPosition::initializeSubscriptions(SubscriptionArray &subscription_array)
+{
+	if (!FlightTaskManualAltitude::initializeSubscriptions(subscription_array)) {
+		return false;
+	}
+
+	if (!_collision_prevention.initializeSubscriptions(subscription_array)) {
+		return false;
+	}
+
+	return true;
+}
+
 bool FlightTaskManualPosition::updateInitialize()
 {
 	bool ret = FlightTaskManualAltitude::updateInitialize();
@@ -113,6 +131,12 @@ void FlightTaskManualPosition::_scaleSticks()
 
 	/* Rotate setpoint into local frame. */
 	_rotateIntoHeadingFrame(vel_sp_xy);
+
+	// collision prevention
+	if (_collision_prevention.is_active()) {
+		_collision_prevention.modifySetpoint(vel_sp_xy, _constraints.speed_xy);
+	}
+
 	_velocity_setpoint(0) = vel_sp_xy(0);
 	_velocity_setpoint(1) = vel_sp_xy(1);
 }
