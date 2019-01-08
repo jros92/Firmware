@@ -39,6 +39,8 @@
 
 #include "rtl.h"
 #include "navigator.h"
+#include <dataman/dataman.h>
+#include <navigator/navigation.h>
 
 
 static constexpr float DELAY_SIGMA = 0.01f;
