@@ -67,6 +67,80 @@ RTL::rtl_type() const
 void
 RTL::on_activation()
 {
+
+	// find the RTL destination: go through the safe points & home position
+	const home_position_s &home_position = *_navigator->get_home_position();
+	const vehicle_global_position_s &global_position = *_navigator->get_global_position();
+
+	mission_stats_entry_s stats;
+	int ret = dm_read(DM_KEY_SAFE_POINTS, 0, &stats, sizeof(mission_stats_entry_s));
+	int num_safe_points = 0;
+
+	if (ret == sizeof(mission_stats_entry_s)) {
+		num_safe_points = stats.num_items;
+	}
+
+	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "Found %d SAFE POINTS", (int)num_safe_points);
+
+	int closest_index = 0;
+	mission_safe_point_s closest_safe_point;
+
+	// take home position into account
+	double dlat = home_position.lat - global_position.lat;
+	double dlon = home_position.lon - global_position.lon;
+	double min_dist_squared = dlat * dlat + dlon * dlon;
+
+	float dist_to_home_meters = get_distance_to_next_waypoint(home_position.lat, home_position.lon, global_position.lat, global_position.lon);
+	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "Current distance to HOME: %f", (double)dist_to_home_meters);
+
+	// find the closest point
+	for (int current_seq = 1; current_seq <= num_safe_points; ++current_seq) {
+		mission_safe_point_s mission_safe_point;
+
+		if (dm_read(DM_KEY_SAFE_POINTS, current_seq, &mission_safe_point, sizeof(mission_safe_point_s)) !=
+		    sizeof(mission_safe_point_s)) {
+			PX4_ERR("dm_read failed");
+			continue;
+		}
+
+		// TODO: handle mission_safe_point.frame
+		// TODO: take altitude into account for distance measurement
+
+		dlat = mission_safe_point.lat - global_position.lat;
+		dlon = mission_safe_point.lon - global_position.lon;
+		double dist_squared = dlat * dlat + dlon * dlon;
+
+		const float dist_to_safepoint_meters = get_distance_to_next_waypoint(mission_safe_point.lat, mission_safe_point.lon, global_position.lat, global_position.lon);
+		
+		mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "Checking Safe Point %d:\tLat: %f, Lon: %f", (int)current_seq, (double)mission_safe_point.lat, (double)mission_safe_point.lon);
+		mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "Distance to Safe Point %d: %f", (int)current_seq, (double)dist_to_safepoint_meters);
+
+
+		if (dist_squared < min_dist_squared) {
+			closest_index = current_seq;
+			min_dist_squared = dist_squared;
+			closest_safe_point = mission_safe_point;
+		}
+
+	}
+
+	if (closest_index == 0) {
+		_destination.set(home_position);
+
+	} else {
+		_destination.safe_point_index = closest_index;
+		_destination.lat = closest_safe_point.lat;
+		_destination.lon = closest_safe_point.lon;
+
+		// TODO: for now we use the same altitude as home
+		_destination.alt = home_position.alt;
+		_destination.yaw = home_position.yaw;
+	}
+
+	float dist_to_safepoint_meters = get_distance_to_next_waypoint(_destination.lat, _destination.lon, global_position.lat, global_position.lon);
+	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "Clostes safe point: ID: %d: %f", (int)closest_index, (double)dist_to_safepoint_meters);
+
+
 	if (_navigator->get_land_detected()->landed) {
 		// For safety reasons don't go into RTL if landed.
 		_rtl_state = RTL_STATE_LANDED;
@@ -74,7 +148,7 @@ RTL::on_activation()
 	} else if ((rtl_type() == RTL_LAND) && _navigator->on_mission_landing()) {
 		// RTL straight to RETURN state, but mission will takeover for landing.
 
-	} else if ((_navigator->get_global_position()->alt < _navigator->get_home_position()->alt + _param_return_alt.get())
+	} else if ((global_position.alt < home_position.alt + _param_return_alt.get())
 		   || _rtl_alt_min) {
 
 		// If lower than return altitude, climb up first.
@@ -159,7 +233,7 @@ RTL::set_rtl_item()
 			_mission_item.origin = ORIGIN_ONBOARD;
 
 			mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "RTL: climb to %d m (%d m above home)",
-						     (int)ceilf(return_alt), (int)ceilf(return_alt - _navigator->get_home_position()->alt));
+						     (int)ceilf(return_alt), (int)ceilf(return_alt - home.alt));
 			break;
 		}
 
