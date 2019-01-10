@@ -124,6 +124,8 @@ private:
 	RTLPosition _destination; ///< the RTL position to fly to (typically the home position or a safe point)
 
 
+	double risk_weights[4] = {1, 10, 50, 200}; ///< Weighting factors for risk assessment to choose safe point
+
 	// Polygon struct for Contingency Management
 	struct RiskZonePolygon {
 		unsigned vertex_count;

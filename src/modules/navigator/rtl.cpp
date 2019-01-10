@@ -49,6 +49,9 @@ RTL::RTL(Navigator *navigator) :
 	MissionBlock(navigator),
 	ModuleParams(navigator)
 {
+	// Load all risk zones
+	loadRiskZones();
+	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Loaded %d RISK ZONES", (int)riskZones.size());
 }
 
 void
@@ -67,16 +70,14 @@ RTL::rtl_type() const
 void
 RTL::on_activation()
 {
-
-
-	// Load all risk zones
-	loadRiskZones();
-	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Loaded %d RISK ZONES", (int)riskZones.size());
-
 	// find the RTL destination: go through the safe points & home position
+
+
+	// Get home and current global position
 	const home_position_s &home_position = *_navigator->get_home_position();
 	const vehicle_global_position_s &global_position = *_navigator->get_global_position();
 
+	// Load all safe points ("rally points")
 	mission_stats_entry_s stats;
 	int ret = dm_read(DM_KEY_SAFE_POINTS, 0, &stats, sizeof(mission_stats_entry_s));
 	int num_safe_points = 0;
@@ -87,21 +88,65 @@ RTL::on_activation()
 
 	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Found %d SAFE POINTS (not including HOME or LAND)", (int)num_safe_points);
 
-	double distance_to_safepoint[num_safe_points];
-	double risk_path_fraction_to_safepoint_for_rz[num_safe_points][riskZones.size()];
-	double risk_distance_to_safepoint_total_per_riskvalue[num_safe_points][NUM_RISK_VALUES];
-
+	// Declarations
+	double distance_to_safepoint[num_safe_points+1];
+	double risk_path_fraction_to_safepoint_for_rz[num_safe_points+1][riskZones.size()];
+	double risk_distance_to_safepoint_total_per_riskvalue[num_safe_points+1][NUM_RISK_VALUES];
+	double weighted_risk_for_safepoints[num_safe_points+1];
 
 	int closest_index = 0;
-	mission_safe_point_s closest_safe_point;
+	mission_safe_point_s safest_safe_point;
 
-	// take home position into account
-	double dlat = home_position.lat - global_position.lat;
-	double dlon = home_position.lon - global_position.lon;
-	double min_dist_squared = dlat * dlat + dlon * dlon;
-
+	// Take home position into account as a SLZ
+	// Check distance
+	// double dlat = home_position.lat - global_position.lat;
+	// double dlon = home_position.lon - global_position.lon;
+	// double min_dist_squared = dlat * dlat + dlon * dlon;
 	float dist_to_home_meters = get_distance_to_next_waypoint(home_position.lat, home_position.lon, global_position.lat, global_position.lon);
-	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Current distance to HOME: %f m", (double)dist_to_home_meters);
+	distance_to_safepoint[0] = (double) dist_to_home_meters;
+	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Current distance to HOME: %.2f m", (double)dist_to_home_meters);
+
+	// Check risk for home position
+	for (unsigned current_rz_seq = 0; current_rz_seq < riskZones.size(); ++current_rz_seq) {
+		risk_path_fraction_to_safepoint_for_rz[0][current_rz_seq] = checkPathAgainstRiskZone(global_position.lat, 
+			global_position.lon, home_position.lat, home_position.lon, riskZones[current_rz_seq]);
+
+		double risk_overflown_distance_for_rz = risk_path_fraction_to_safepoint_for_rz[0][current_rz_seq] * (double)dist_to_home_meters;
+
+		// mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), 
+		// 	"[CM] Analysis for path to Safe Point #%d for Risk Zone %d (value=%d): fraction %.5f, risk distance: %.2f", 
+		// 	(int)current_seq, 
+		// 	(int)current_rz_seq, 
+		// 	(int)riskZones[current_rz_seq].risk_value, 
+		// 	(double)risk_path_fraction_to_safepoint_for_rz[current_seq][current_rz_seq], 
+		// 	(double)risk_overflown_distance_for_rz);
+
+		risk_distance_to_safepoint_total_per_riskvalue[0][riskZones[current_rz_seq].risk_value-1] += risk_overflown_distance_for_rz;
+		
+	}
+
+	// Assess weighted risk for home position based on the overflown risk zones weighted with their risk value and weighting factor
+	double min_weighted_risk_for_safepoints = 
+			risk_distance_to_safepoint_total_per_riskvalue[0][0] * risk_weights[0] + 
+			risk_distance_to_safepoint_total_per_riskvalue[0][1] * risk_weights[1] +
+			risk_distance_to_safepoint_total_per_riskvalue[0][2] * risk_weights[2] +
+			risk_distance_to_safepoint_total_per_riskvalue[0][3] * risk_weights[3];
+
+	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), 
+				"[CM] Path to HOME :: Distances [m]: Total: %.2f, R1: %.2f, R2: %.2f, R3: %.2f, R4: %.2f, Weighted: %.2f", 
+				(double)dist_to_home_meters,
+				risk_distance_to_safepoint_total_per_riskvalue[0][0],
+				risk_distance_to_safepoint_total_per_riskvalue[0][1],
+				risk_distance_to_safepoint_total_per_riskvalue[0][2],
+				risk_distance_to_safepoint_total_per_riskvalue[0][3],
+				min_weighted_risk_for_safepoints);
+
+
+	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Total Weighted Risk to fly HOME :: %.2f", min_weighted_risk_for_safepoints);
+
+
+	// // Store safe points for later
+	// std::vector<mission_safe_point_s> mission_safe_points;
 
 	// find the closest point and risk for all points
 	for (int current_seq = 1; current_seq <= num_safe_points; ++current_seq) {
@@ -113,31 +158,35 @@ RTL::on_activation()
 			continue;
 		}
 
+		// // Store safe point for later
+		// mission_safe_points.push_back(mission_safe_point);
+
 		// TODO: handle mission_safe_point.frame
 		// TODO: take altitude into account for distance measurement
 
-		dlat = mission_safe_point.lat - global_position.lat;
-		dlon = mission_safe_point.lon - global_position.lon;
-		double dist_squared = dlat * dlat + dlon * dlon;
+		// dlat = mission_safe_point.lat - global_position.lat;
+		// dlon = mission_safe_point.lon - global_position.lon;
+		// double dist_squared = dlat * dlat + dlon * dlon;
 
 		const float dist_to_safepoint_meters = get_distance_to_next_waypoint(mission_safe_point.lat, mission_safe_point.lon, global_position.lat, global_position.lon);
 		distance_to_safepoint[current_seq] = dist_to_safepoint_meters;
-		mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Distance to Safe Point #%d (Lat: %f, Lon: %f): %f m", (int)current_seq, (double)mission_safe_point.lat, (double)mission_safe_point.lon, (double)dist_to_safepoint_meters);
+		mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), 
+			"[CM] Distance to Safe Point #%d (Lat: %f, Lon: %f): %.2f m", 
+			(int)current_seq, 
+			(double)mission_safe_point.lat, 
+			(double)mission_safe_point.lon, 
+			(double)dist_to_safepoint_meters);
 
-
-		if (dist_squared < min_dist_squared) {
-			closest_index = current_seq;
-			min_dist_squared = dist_squared;
-			closest_safe_point = mission_safe_point;
-		}
 
 		// Check risk for every risk zone
 		for (unsigned current_rz_seq = 0; current_rz_seq < riskZones.size(); ++current_rz_seq) {
-			risk_path_fraction_to_safepoint_for_rz[current_seq][current_rz_seq] = checkPathAgainstRiskZone(global_position.lat, global_position.lon, mission_safe_point.lat, mission_safe_point.lon, riskZones[current_rz_seq]);
+			risk_path_fraction_to_safepoint_for_rz[current_seq][current_rz_seq] = checkPathAgainstRiskZone(global_position.lat, 
+				global_position.lon, mission_safe_point.lat, mission_safe_point.lon, riskZones[current_rz_seq]);
+
 			double risk_overflown_distance_for_rz = risk_path_fraction_to_safepoint_for_rz[current_seq][current_rz_seq] * distance_to_safepoint[current_seq];
 
 			mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), 
-				"[CM] Analysis for path to Safe Point #%d for Risk Zone %d (value=%d): fraction %f, risk distance: %f", 
+				"[CM] Analysis for path to Safe Point #%d for Risk Zone %d (value=%d): fraction %.5f, risk distance: %.2f", 
 				(int)current_seq, 
 				(int)current_rz_seq, 
 				(int)riskZones[current_rz_seq].risk_value, 
@@ -148,52 +197,62 @@ RTL::on_activation()
 			
 		}
 
+		// Assess weighted risk for all safe points AND home position based on the overflown risk zones weighted with their risk value and weighting factor
+		weighted_risk_for_safepoints[current_seq] = 
+			risk_distance_to_safepoint_total_per_riskvalue[current_seq][0] * risk_weights[0] + 
+			risk_distance_to_safepoint_total_per_riskvalue[current_seq][1] * risk_weights[1] +
+			risk_distance_to_safepoint_total_per_riskvalue[current_seq][2] * risk_weights[2] +
+			risk_distance_to_safepoint_total_per_riskvalue[current_seq][3] * risk_weights[3];
+
 
 		mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), 
-				"[CM] Analysis for path to Safe Point #%d: Distances [m] over risk zones of values: 1: %f, 2: %f, 3: %f, 4: %f", 
-				(int)current_seq, 
+				"[CM] Path to SLZ #%d :: Distances [m]: Total: %.2f, R1: %.2f, R2: %.2f, R3: %.2f, R4: %.2f, Weighted: %.2f", 
+				(int)current_seq,
+				distance_to_safepoint[current_seq],
 				risk_distance_to_safepoint_total_per_riskvalue[current_seq][0],
 				risk_distance_to_safepoint_total_per_riskvalue[current_seq][1],
 				risk_distance_to_safepoint_total_per_riskvalue[current_seq][2],
-				risk_distance_to_safepoint_total_per_riskvalue[current_seq][3]);
-			
+				risk_distance_to_safepoint_total_per_riskvalue[current_seq][3],
+				weighted_risk_for_safepoints[current_seq]);
 
 
 
+		if (weighted_risk_for_safepoints[current_seq] < min_weighted_risk_for_safepoints) {
+			closest_index = current_seq;
+			min_weighted_risk_for_safepoints = weighted_risk_for_safepoints[current_seq];
+			safest_safe_point = mission_safe_point;
+		}
 	}
 
-	// Assess risk for closest (3) safe points based on risk zones with risk values
+	
+	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Safest SLZ: ID: %d, distance %.2f m", (int)closest_index, (double)distance_to_safepoint[closest_index]);
 
-	/* TEST */
-	// RiskZonePolygon riskZone1 = riskZones[0];
-	// From Waypoint 4
-	// 50.0417519, 8.6901311
-	// To  Rally Point
-	// 50.0414197, 8.6905081
-	// double testRiskZoneRet = checkPathAgainstRiskZone(50.0417519, 8.6901311, 50.0414197, 8.6905081, riskZones[0]);
-	// mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Test Risk Zone: %f", testRiskZoneRet);
-
+	// Set the destination for RTL
 	if (closest_index == 0) {
 		_destination.set(home_position);
 
 	} else {
 		_destination.safe_point_index = closest_index;
-		_destination.lat = closest_safe_point.lat;
-		_destination.lon = closest_safe_point.lon;
+		_destination.lat = safest_safe_point.lat;
+		_destination.lon = safest_safe_point.lon;
+		// 	_destination.lat = mission_safe_points[closest_index-1].lat;
+		// 	_destination.lon = mission_safe_points[closest_index-1].lon;
+
 
 		// TODO: for now we use the same altitude as home
 		_destination.alt = home_position.alt;
 		_destination.yaw = home_position.yaw;
 	}
 
-	float dist_to_safepoint_meters = get_distance_to_next_waypoint(_destination.lat, _destination.lon, global_position.lat, global_position.lon);
-	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Closest safe point: ID: %d, distance %f m", (int)closest_index, (double)dist_to_safepoint_meters);
 
-	float path_riskzone_portion = checkPathAgainstRiskZone(global_position.lat, global_position.lon, _destination.lat, _destination.lon, riskZones[0]);
-	float path_riskzone_risk_distance = path_riskzone_portion * dist_to_safepoint_meters;
-	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] The path to the closest safe point (%d) passes through risk zones %f of its total distance, leading to a risk zone distance of %f m", (int)closest_index, (double)path_riskzone_portion, (double)path_riskzone_risk_distance);
+	// float dist_to_safepoint_meters = get_distance_to_next_waypoint(_destination.lat, _destination.lon, global_position.lat, global_position.lon);
+	
+	// float path_riskzone_portion = checkPathAgainstRiskZone(global_position.lat, global_position.lon, _destination.lat, _destination.lon, riskZones[0]);
+	// float path_riskzone_risk_distance = path_riskzone_portion * dist_to_safepoint_meters;
+	// mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] The path to the closest safe point (%d) passes through risk zones %.2f of its total distance, leading to a risk zone distance of %.2f m", (int)closest_index, (double)path_riskzone_portion, (double)path_riskzone_risk_distance);
 
 
+	/* Some state machine stuff and updating status throughout the system*/
 
 	if (_navigator->get_land_detected()->landed) {
 		// For safety reasons don't go into RTL if landed.
@@ -518,8 +577,8 @@ RTL::checkPathAgainstRiskZone(double p0_lat, double p0_lon, double p1_lat, doubl
 		lons.push_back(lon);
 	}
 
-	// mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] INTERP LATS: [0]: %f, [1]: %f, [2]: %f, ... , [end-1]: %f, [end]: %f", lats[0], lats[1], lats[2], lats[lats.size()-2], lats[lats.size()-1]);
-	// mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] INTERP LONS: [0]: %f, [1]: %f, [2]: %f, ... , [end-1]: %f, [end]: %f", lons[0], lons[1], lons[2], lons[lons.size()-2], lons[lons.size()-1]);
+	// mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] INTERP LATS: [0]: %.2f, [1]: %.2f, [2]: %.2f, ... , [end-1]: %.2f, [end]: %.2f", lats[0], lats[1], lats[2], lats[lats.size()-2], lats[lats.size()-1]);
+	// mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] INTERP LONS: [0]: %.2f, [1]: %.2f, [2]: %.2f, ... , [end-1]: %.2f, [end]: %.2f", lons[0], lons[1], lons[2], lons[lons.size()-2], lons[lons.size()-1]);
 
 	// bool pointIsInsidePoly[NPOINTS];
 	unsigned int count_inside = 0;
@@ -573,7 +632,7 @@ RTL::loadRiskZones()
 	riskZone0.risk_value = 2;
 	riskZones.push_back(riskZone0);
 
-	// mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Risk Zone 1 (risk=%d): %f", riskZone1.risk_value, riskZone1.lat_vertex[2]);
+	// mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Risk Zone 1 (risk=%d): %.2f", riskZone1.risk_value, riskZone1.lat_vertex[2]);
 
 	// bool inside1 = insidePolygon(riskZone1, 50.041640, 8.6902689);
 	// mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Test Point 1 should be inside, and is %s ", inside1 ? "inside" : "outside");
@@ -596,13 +655,13 @@ RTL::loadRiskZones()
 	riskZone2.risk_value = 3;
 	riskZones.push_back(riskZone2);
 
-	// Polygon 3
-	RiskZonePolygon riskZone3;
-	riskZone3.vertex_count = 7;
-	riskZone3.lat_vertex = {50.0420392689768, 50.042037546394084, 50.04215640445622, 50.04231660398742, 50.042849737286964, 50.04284887601013, 50.0420392689768};
-	riskZone3.lon_vertex = {8.690931200981149, 8.691706359386453, 8.691706359386453, 8.692006766796121, 8.692009449005127, 8.690928518772125, 8.690931200981149};
-	riskZone3.risk_value = 4;
-	riskZones.push_back(riskZone3);
+	// Polygon 3 - DUPLICATE FROM 1
+	// RiskZonePolygon riskZone3;
+	// riskZone3.vertex_count = 7;
+	// riskZone3.lat_vertex = {50.0420392689768, 50.042037546394084, 50.04215640445622, 50.04231660398742, 50.042849737286964, 50.04284887601013, 50.0420392689768};
+	// riskZone3.lon_vertex = {8.690931200981149, 8.691706359386453, 8.691706359386453, 8.692006766796121, 8.692009449005127, 8.690928518772125, 8.690931200981149};
+	// riskZone3.risk_value = 4;
+	// riskZones.push_back(riskZone3);
 
 	// Polygon 4
 	RiskZonePolygon riskZone4;
