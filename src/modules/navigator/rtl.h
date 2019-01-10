@@ -53,7 +53,9 @@
 #include <iostream>
 //#include <iomanip>
 #include <lib/mathlib/mathlib.h>
+//#include <fstream>
 
+#define NUM_RISK_VALUES 4	// Number of risk values; for now we have the values 1,2,3,4; i.e. 4 values
 #define MAX_INTERPOLATION_STEP_DISTANCE 0.00000005 // in degrees for lat and lon
 
 class Navigator;
@@ -148,9 +150,9 @@ private:
 
 	/**
 	 * Check if path from pos0 (current) to pos1 (SLZ) intersects the provided risk zone polygon
-	 * Return distance of intersection in meters [m], or -1 if no intersection was found
+	 * Return fraction of distance of intersection relative to total distance between the two points
 	 */
-	int checkPathAgainstRiskZone(double p0_lat, 
+	float checkPathAgainstRiskZone(double p0_lat, 
 		double p0_lon, 
 		double p1_lat, 
 		double p1_lon, 
