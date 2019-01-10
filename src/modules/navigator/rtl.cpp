@@ -80,7 +80,7 @@ RTL::on_activation()
 		num_safe_points = stats.num_items;
 	}
 
-	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "Found %d SAFE POINTS (not including HOME or LAND)", (int)num_safe_points);
+	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Found %d SAFE POINTS (not including HOME or LAND)", (int)num_safe_points);
 
 	int closest_index = 0;
 	mission_safe_point_s closest_safe_point;
@@ -91,7 +91,7 @@ RTL::on_activation()
 	double min_dist_squared = dlat * dlat + dlon * dlon;
 
 	float dist_to_home_meters = get_distance_to_next_waypoint(home_position.lat, home_position.lon, global_position.lat, global_position.lon);
-	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "Current distance to HOME: %f m", (double)dist_to_home_meters);
+	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Current distance to HOME: %f m", (double)dist_to_home_meters);
 
 	// find the closest point
 	for (int current_seq = 1; current_seq <= num_safe_points; ++current_seq) {
@@ -112,7 +112,7 @@ RTL::on_activation()
 
 		const float dist_to_safepoint_meters = get_distance_to_next_waypoint(mission_safe_point.lat, mission_safe_point.lon, global_position.lat, global_position.lon);
 		
-		mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "Distance to Safe Point #%d (Lat: %f, Lon: %f): %f m", (int)current_seq, (double)mission_safe_point.lat, (double)mission_safe_point.lon, (double)dist_to_safepoint_meters);
+		mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Distance to Safe Point #%d (Lat: %f, Lon: %f): %f m", (int)current_seq, (double)mission_safe_point.lat, (double)mission_safe_point.lon, (double)dist_to_safepoint_meters);
 
 
 		if (dist_squared < min_dist_squared) {
@@ -122,6 +122,19 @@ RTL::on_activation()
 		}
 
 	}
+
+	// Assess risk for closest (3) safe points based on risk zones with risk values
+	loadRiskZones();
+	// RiskZonePolygon riskZone1 = riskZones[0];
+	// From Waypoint 4
+	// 50.0417519, 8.6901311
+	// To  Rally Point
+	// 50.0414197, 8.6905081
+	int testRiskZoneRet = checkPathAgainstRiskZone(50.0417519, 8.6901311, 50.0414197, 8.6905081, riskZones[0]);
+	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Test Risk Zone: %d", testRiskZoneRet);
+
+
+
 
 	if (closest_index == 0) {
 		_destination.set(home_position);
@@ -137,7 +150,7 @@ RTL::on_activation()
 	}
 
 	float dist_to_safepoint_meters = get_distance_to_next_waypoint(_destination.lat, _destination.lon, global_position.lat, global_position.lon);
-	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "Clostes safe point: ID: %d, distance %f m", (int)closest_index, (double)dist_to_safepoint_meters);
+	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Closest safe point: ID: %d, distance %f m", (int)closest_index, (double)dist_to_safepoint_meters);
 
 
 	if (_navigator->get_land_detected()->landed) {
@@ -417,4 +430,105 @@ RTL::advance_rtl()
 	default:
 		break;
 	}
+}
+
+void
+RTL::loadRiskZones()
+{
+
+	// Polygon 1
+	// 50.0416403, 8.6902687 // top left vertex
+	// 50.0416436, 8.6906747 // TR vertex
+	// 50.0415425, 8.6907306 // BR vertex 
+	// 50.0415099, 8.6902687 // BL vertex
+	RiskZonePolygon riskZone1;
+	riskZone1.vertex_count = 4;
+	riskZone1.lat_vertex = {50.0416403, 50.0416436, 50.0415425, 50.0415099};
+	riskZone1.lon_vertex = {8.6902687, 8.6906747, 8.6907306, 8.6902687};
+	riskZone1.risk_value = 2;
+	riskZones.push_back(riskZone1);
+
+	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Risk Zone 1 (risk=%d): %f", riskZone1.risk_value, riskZone1.lat_vertex[2]);
+
+	bool inside1 = insidePolygon(riskZone1, 50.041640, 8.6902689);
+	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Test Point 1 should be inside, and is %s ", inside1 ? "inside" : "outside");
+	bool inside2 = insidePolygon(riskZone1, 50.0416405, 8.6902686);
+	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Test Point 2 should not be inside. and is %s ", inside2 ? "inside" : "outside");
+
+}
+
+int
+RTL::checkPathAgainstRiskZone(double p0_lat, double p0_lon, double p1_lat, double p1_lon, const RiskZonePolygon &polygon)
+{
+	/* First, interpolate the path between p0 and p1 using the defined maximum interpolation step size */
+	std::vector<double> lats, lons;
+
+	int NPOINTS_LAT = (p1_lat - p0_lat) / MAX_INTERPOLATION_STEP_DISTANCE;
+	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] NPOINTS_LAT=%d", NPOINTS_LAT);
+	int NPOINTS_LON = (p1_lon - p0_lon) / MAX_INTERPOLATION_STEP_DISTANCE;
+	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] NPOINTS_LON=%d", NPOINTS_LON);
+
+	if (NPOINTS_LAT < 0) {
+		NPOINTS_LAT *= (-1);
+	}
+	if (NPOINTS_LON < 0) {
+		NPOINTS_LON *= (-1);
+	}
+
+	// Take the larger number of steps; making the other vector's step size smaller
+	int NPOINTS = math::max(NPOINTS_LON, NPOINTS_LAT);
+	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] NPOINTS=%d", NPOINTS);
+
+	// Compute actual step sizes for lat and lon, respectively
+	// If step size is negative, it will be subtracted in the interpolation loop
+	double INTERPOLATION_STEP_LAT = (p1_lat - p0_lat) / (double)NPOINTS;
+	double INTERPOLATION_STEP_LON = (p1_lon - p0_lon) / (double)NPOINTS;
+
+	// Interpolate
+	double lat, lon;
+	lat = p0_lat;
+	lon = p0_lon;
+	for (int i = 0; i < NPOINTS; i++) {
+		// if (lat_increasing) lat += INTERPOLATION_STEP_DISTANCE;
+		// else lat -= INTERPOLATION_STEP_DISTANCE;
+		lat += INTERPOLATION_STEP_LAT;
+		lats.push_back(lat);
+
+		// if (lon_increasing) lon += INTERPOLATION_STEP_DISTANCE;
+		// else lon -= INTERPOLATION_STEP_DISTANCE;
+		lon += INTERPOLATION_STEP_LON;
+		lons.push_back(lon);
+	}
+
+	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] INTERP LATS: [0]: %f, [1]: %f, [2]: %f, ... , [end-1]: %f, [end]: %f", lats[0], lats[1], lats[2], lats[lats.size()-2], lats[lats.size()-1]);
+	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] INTERP LONS: [0]: %f, [1]: %f, [2]: %f, ... , [end-1]: %f, [end]: %f", lons[0], lons[1], lons[2], lons[lons.size()-2], lons[lons.size()-1]);
+
+
+
+	return NPOINTS_LAT;
+}
+
+
+bool
+RTL::insidePolygon(const RiskZonePolygon &polygon, double lat, double lon)
+{
+
+	/* Adaptation of algorithm originally presented as
+	 * PNPOLY - Point Inclusion in Polygon Test
+	 * W. Randolph Franklin (WRF)
+	 * Only supports non-complex polygons (not self intersecting)
+	 */
+
+	bool c = false;
+
+	for (unsigned i = 0, j = polygon.vertex_count - 1; i < polygon.vertex_count; j = i++) {
+
+		if (((double)polygon.lon_vertex[i] >= lon) != ((double)polygon.lon_vertex[j] >= lon) &&
+		    (lat <= (double)(polygon.lat_vertex[j] - polygon.lat_vertex[i]) * (lon - (double)polygon.lon_vertex[i]) /
+		     (double)(polygon.lon_vertex[j] - polygon.lon_vertex[i]) + (double)polygon.lat_vertex[i])) {
+			c = !c;
+		}
+	}
+
+	return c;
 }

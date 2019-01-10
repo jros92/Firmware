@@ -48,6 +48,14 @@
 #include <uORB/topics/home_position.h>
 #include <uORB/topics/vehicle_global_position.h>
 
+#include <vector>
+#include <string>
+#include <iostream>
+//#include <iomanip>
+#include <lib/mathlib/mathlib.h>
+
+#define MAX_INTERPOLATION_STEP_DISTANCE 0.00000005 // in degrees for lat and lon
+
 class Navigator;
 
 class RTL : public MissionBlock, public ModuleParams
@@ -70,6 +78,7 @@ public:
 	void set_return_alt_min(bool min);
 
 	int rtl_type() const;
+
 
 private:
 	/**
@@ -111,6 +120,46 @@ private:
 	};
 
 	RTLPosition _destination; ///< the RTL position to fly to (typically the home position or a safe point)
+
+
+	// Polygon struct for Contingency Management
+	struct RiskZonePolygon {
+		unsigned vertex_count;
+		std::vector<double> lat_vertex;
+		std::vector<double> lon_vertex;
+		uint8_t risk_value; ///< 0 = home position
+
+		// void set(const home_position_s &home_position)
+		// {
+		// 	lat = home_position.lat;
+		// 	lon = home_position.lon;
+		// 	alt = home_position.alt;
+		// 	yaw = home_position.yaw;
+		// 	safe_point_index = 0;
+		// }
+	};
+
+	std::vector<RiskZonePolygon> riskZones;
+
+	/**
+	 * Get the risk zones
+	 */
+	void		loadRiskZones();
+
+	/**
+	 * Check if path from pos0 (current) to pos1 (SLZ) intersects the provided risk zone polygon
+	 * Return distance of intersection in meters [m], or -1 if no intersection was found
+	 */
+	int checkPathAgainstRiskZone(double p0_lat, 
+		double p0_lon, 
+		double p1_lat, 
+		double p1_lon, 
+		const RiskZonePolygon &polygon);
+	
+	/**
+	 * Check point inside polygon (2D)
+	 */
+	bool		insidePolygon(const RiskZonePolygon &polygon, double lat, double lon);
 
 	bool _rtl_alt_min{false};
 
