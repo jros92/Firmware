@@ -131,7 +131,17 @@ RTL::on_activation()
 		// Assess weighted risk for home position based on the overflown risk zones weighted with their risk value and weighting factor
 		weighted_risk_for_slzs[0] += risk_dist_to_slz_per_rcat[0][riskZones[current_rz_seq].risk_value-1] * RISK_WEIGHTS[riskZones[current_rz_seq].risk_value-1];
 	}
-		
+
+
+	// For now, treat every area that is not explicitly assigned a risk category as being of risk category 1 / lowest category
+	// To this end, fill the remaining distance to HOME with risk zone 1, and add the risk cost to the total risk for HOME
+	risk_dist_to_slz_per_rcat[0][0] = distance_to_safepoint[0];
+	for (unsigned current_rzcat_seq = 1; current_rzcat_seq < NUM_RISK_CATEGORIES; ++current_rzcat_seq) {
+		risk_dist_to_slz_per_rcat[0][0] -= risk_dist_to_slz_per_rcat[0][current_rzcat_seq];
+	}
+	weighted_risk_for_slzs[0] += risk_dist_to_slz_per_rcat[0][0] * RISK_WEIGHTS[0];
+
+
 	double min_weighted_risk_for_slzs = weighted_risk_for_slzs[0];
 
 	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), 
@@ -209,10 +219,18 @@ RTL::on_activation()
 
 			risk_dist_to_slz_per_rcat[current_seq][riskZones[current_rz_seq].risk_value-1] += risk_overflown_distance_for_rz;
 			
-			// Assess weighted risk for all safe points AND home position based on the overflown risk zones weighted with their risk value and weighting factor
+			// Assess weighted risk based on the overflown risk zones weighted with their risk value and weighting factor
 			weighted_risk_for_slzs[current_seq] += risk_dist_to_slz_per_rcat[current_seq][riskZones[current_rz_seq].risk_value-1] * RISK_WEIGHTS[riskZones[current_rz_seq].risk_value-1];
 
 		}
+
+		// For now, treat every area that is not explicitly assigned a risk category as being of risk category 1 / lowest category
+		// To this end, fill the remaining distance to the SLZ with risk zone 1, and add the risk cost to the total risk for this SLZ
+		risk_dist_to_slz_per_rcat[current_seq][0] = distance_to_safepoint[current_seq];
+		for (unsigned current_rzcat_seq = 1; current_rzcat_seq < NUM_RISK_CATEGORIES; ++current_rzcat_seq) {
+			risk_dist_to_slz_per_rcat[current_seq][0] -= risk_dist_to_slz_per_rcat[current_seq][current_rzcat_seq];
+		}
+		weighted_risk_for_slzs[current_seq] += risk_dist_to_slz_per_rcat[current_seq][0] * RISK_WEIGHTS[0];
 
 		mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), 
 				"[CM] Path to SLZ #%d :: Distances [m]: Total: %.2f, R1: %.2f, R2: %.2f, R3: %.2f, R4: %.2f, Weighted: %.2f", 
@@ -224,6 +242,7 @@ RTL::on_activation()
 				risk_dist_to_slz_per_rcat[current_seq][3],
 				weighted_risk_for_slzs[current_seq]);
 
+		// Update safest/closest SLZ
 		// First look at the risk, but if two zones have same risk value (usually 0), take the closer one!
 		if ((weighted_risk_for_slzs[current_seq] <= min_weighted_risk_for_slzs) 
 			&& (distance_to_safepoint[current_seq] < min_dist_to_slz))
