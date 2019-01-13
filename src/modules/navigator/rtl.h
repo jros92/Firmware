@@ -157,6 +157,8 @@ private:
 
 	std::vector<RiskZonePolygon> riskZones;
 
+	hrt_abstime time_cont_initiated; ///< Timestamp at which the RTL procedure was initiated
+
 	/**
 	 * Get the risk zones
 	 */

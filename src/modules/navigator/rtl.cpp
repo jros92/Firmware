@@ -72,10 +72,15 @@ RTL::on_activation()
 {
 	// find the RTL destination: go through the safe points & home position
 
+	// Save time to get total flight time until touchdown.
+	time_cont_initiated = hrt_absolute_time();
+	double time_cont_initiated_secs = (double)time_cont_initiated / (double)1000000;
 
 	// Get home and current global position
 	const home_position_s &home_position = *_navigator->get_home_position();
 	const vehicle_global_position_s &global_position = *_navigator->get_global_position();
+
+	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Contingency Landing Procedure initiated at boottime = %.2f s , pos (lat,lon): %.15f, %.15f", time_cont_initiated_secs, global_position.lat, global_position.lon);
 
 	// Load all safe points ("rally points")
 	mission_stats_entry_s stats;
@@ -102,16 +107,16 @@ RTL::on_activation()
 	// double dlat = home_position.lat - global_position.lat;
 	// double dlon = home_position.lon - global_position.lon;
 	// double min_dist_squared = dlat * dlat + dlon * dlon;
-	float dist_to_home_meters = get_distance_to_next_waypoint(home_position.lat, home_position.lon, global_position.lat, global_position.lon);
-	distance_to_safepoint[0] = (double) dist_to_home_meters;
-	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Current distance to HOME: %.2f m", (double)dist_to_home_meters);
+	distance_to_safepoint[0] = get_distance_to_next_waypoint(home_position.lat, home_position.lon, global_position.lat, global_position.lon);
+	// mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Current distance to HOME: %.2f m", distance_to_safepoint[0]);
 
 	// Check risk for home position
+	double min_weighted_risk_for_slzs = 0;
 	for (unsigned current_rz_seq = 0; current_rz_seq < riskZones.size(); ++current_rz_seq) {
 		risk_path_fraction_to_slz_for_rz[0][current_rz_seq] = checkPathAgainstRiskZone(global_position.lat, 
 			global_position.lon, home_position.lat, home_position.lon, riskZones[current_rz_seq]);
 
-		double risk_overflown_distance_for_rz = risk_path_fraction_to_slz_for_rz[0][current_rz_seq] * (double)dist_to_home_meters;
+		double risk_overflown_distance_for_rz = risk_path_fraction_to_slz_for_rz[0][current_rz_seq] * distance_to_safepoint[0];
 
 		// mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), 
 		// 	"[CM] Analysis for path to Safe Point #%d for Risk Zone %d (value=%d): fraction %.5f, risk distance: %.2f", 
@@ -122,26 +127,21 @@ RTL::on_activation()
 		// 	(double)risk_overflown_distance_for_rz);
 
 		risk_dist_to_slz_per_rcat[0][riskZones[current_rz_seq].risk_value-1] += risk_overflown_distance_for_rz;
-		
-	}
 
-	// Assess weighted risk for home position based on the overflown risk zones weighted with their risk value and weighting factor
-	double min_weighted_risk_for_slzs = 
-			risk_dist_to_slz_per_rcat[0][0] * RISK_WEIGHTS[0] + 
-			risk_dist_to_slz_per_rcat[0][1] * RISK_WEIGHTS[1] +
-			risk_dist_to_slz_per_rcat[0][2] * RISK_WEIGHTS[2] +
-			risk_dist_to_slz_per_rcat[0][3] * RISK_WEIGHTS[3];
+		// Assess weighted risk for home position based on the overflown risk zones weighted with their risk value and weighting factor
+		min_weighted_risk_for_slzs += risk_dist_to_slz_per_rcat[0][riskZones[current_rz_seq].risk_value-1] * RISK_WEIGHTS[riskZones[current_rz_seq].risk_value-1];
+	}
 
 	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), 
 				"[CM] Path to HOME :: Distances [m]: Total: %.2f, R1: %.2f, R2: %.2f, R3: %.2f, R4: %.2f, Weighted: %.2f", 
-				(double)dist_to_home_meters,
+				distance_to_safepoint[0],
 				risk_dist_to_slz_per_rcat[0][0],
 				risk_dist_to_slz_per_rcat[0][1],
 				risk_dist_to_slz_per_rcat[0][2],
 				risk_dist_to_slz_per_rcat[0][3],
 				min_weighted_risk_for_slzs);
 
-	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Total Weighted Risk to fly HOME :: %.2f", min_weighted_risk_for_slzs);
+	// mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Total Weighted Risk to fly HOME :: %.2f", min_weighted_risk_for_slzs);
 
 	// // Store safe points for later
 	// std::vector<mission_safe_point_s> mission_safe_points;
@@ -240,7 +240,7 @@ RTL::on_activation()
 
 	// Compute flight termination risk at current position
 	// Check risk for every risk zone
-	double ft_risk_at_curr_pos = RISK_WEIGHTS[0];
+	double ft_risk_at_curr_pos = RISK_VALUES_FT[0];
 	for (unsigned current_rz_seq = 0; current_rz_seq < riskZones.size(); ++current_rz_seq) {
 		if (insidePolygon(riskZones[current_rz_seq], global_position.lat, global_position.lon)) {
 			ft_risk_at_curr_pos = RISK_VALUES_FT[riskZones[current_rz_seq].risk_value-1];
@@ -493,6 +493,11 @@ RTL::set_rtl_item()
 		}
 
 	case RTL_STATE_LANDED: {
+
+			hrt_abstime time_cont_total = hrt_absolute_time() - time_cont_initiated;
+			double time_cont_total_secs = (double)time_cont_total / (double)1000000;
+			mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] LANDED. Total flight duration after contingency: %.2f s", time_cont_total_secs);
+
 			set_idle_item(&_mission_item);
 			set_return_alt_min(false);
 			break;
