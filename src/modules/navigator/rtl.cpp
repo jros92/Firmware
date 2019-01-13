@@ -112,6 +112,7 @@ RTL::on_activation()
 
 	// Check risk for home position
 	double min_weighted_risk_for_slzs = 0;
+	double min_dist_to_slz = distance_to_safepoint[0];
 	for (unsigned current_rz_seq = 0; current_rz_seq < riskZones.size(); ++current_rz_seq) {
 		risk_path_fraction_to_slz_for_rz[0][current_rz_seq] = checkPathAgainstRiskZone(global_position.lat, 
 			global_position.lon, home_position.lat, home_position.lon, riskZones[current_rz_seq]);
@@ -226,9 +227,10 @@ RTL::on_activation()
 				risk_dist_to_slz_per_rcat[current_seq][3],
 				weighted_risk_for_slzs[current_seq]);
 
-		if (weighted_risk_for_slzs[current_seq] < min_weighted_risk_for_slzs) {
+		if ((weighted_risk_for_slzs[current_seq] <= min_weighted_risk_for_slzs) && (distance_to_safepoint[current_seq] < min_dist_to_slz)) {
 			closest_index = current_seq;
 			min_weighted_risk_for_slzs = weighted_risk_for_slzs[current_seq];
+			min_dist_to_slz = distance_to_safepoint[current_seq];
 			safest_safe_point = mission_safe_point;
 		}
 	}
