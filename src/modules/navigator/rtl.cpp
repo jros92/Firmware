@@ -571,9 +571,7 @@ RTL::checkPathAgainstRiskZone(double p0_lat, double p0_lon, double p1_lat, doubl
 	std::vector<double> lats, lons;
 
 	int NPOINTS_LAT = (p1_lat - p0_lat) / MAX_INTERPOLATION_STEP_DISTANCE;
-	// mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] NPOINTS_LAT=%d", NPOINTS_LAT);
 	int NPOINTS_LON = (p1_lon - p0_lon) / MAX_INTERPOLATION_STEP_DISTANCE;
-	// mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] NPOINTS_LON=%d", NPOINTS_LON);
 
 	if (NPOINTS_LAT < 0) {
 		NPOINTS_LAT *= (-1);
@@ -582,37 +580,28 @@ RTL::checkPathAgainstRiskZone(double p0_lat, double p0_lon, double p1_lat, doubl
 		NPOINTS_LON *= (-1);
 	}
 
-	// Take the larger number of steps; making the other vector's step size smaller
+	// Take the larger number of steps; potentially making the other vector's step size smaller
 	int NPOINTS = math::max(NPOINTS_LON, NPOINTS_LAT);
-	// mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] NPOINTS=%d", NPOINTS);
 
 	// Compute actual step sizes for lat and lon, respectively
 	// If step size is negative, it will be subtracted in the interpolation loop
 	double INTERPOLATION_STEP_LAT = (p1_lat - p0_lat) / (double)NPOINTS;
 	double INTERPOLATION_STEP_LON = (p1_lon - p0_lon) / (double)NPOINTS;
 
-	// Interpolate
+	// Interpolate the 2D trajectory
 	double lat, lon;
 	lat = p0_lat;
 	lon = p0_lon;
 	for (int i = 0; i < NPOINTS; i++) {
-		// if (lat_increasing) lat += INTERPOLATION_STEP_DISTANCE;
-		// else lat -= INTERPOLATION_STEP_DISTANCE;
 		lat += INTERPOLATION_STEP_LAT;
 		lats.push_back(lat);
 
-		// if (lon_increasing) lon += INTERPOLATION_STEP_DISTANCE;
-		// else lon -= INTERPOLATION_STEP_DISTANCE;
 		lon += INTERPOLATION_STEP_LON;
 		lons.push_back(lon);
 	}
 
-	// mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] INTERP LATS: [0]: %.2f, [1]: %.2f, [2]: %.2f, ... , [end-1]: %.2f, [end]: %.2f", lats[0], lats[1], lats[2], lats[lats.size()-2], lats[lats.size()-1]);
-	// mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] INTERP LONS: [0]: %.2f, [1]: %.2f, [2]: %.2f, ... , [end-1]: %.2f, [end]: %.2f", lons[0], lons[1], lons[2], lons[lons.size()-2], lons[lons.size()-1]);
-
-	// bool pointIsInsidePoly[NPOINTS];
-
 	/* Check the interpolated trajectory and compute the fraction of it going through the polygon */
+	// bool pointIsInsidePoly[NPOINTS];
 	unsigned int count_inside = 0;
 	for (int i = 0; i < NPOINTS; i++) {
 		if (insidePolygon(polygon, lats[i], lons[i])) ++count_inside;
@@ -656,12 +645,13 @@ RTL::loadRiskZones()
 	// 50.0416436, 8.6906747 // TR vertex
 	// 50.0415425, 8.6907306 // BR vertex 
 	// 50.0415099, 8.6902687 // BL vertex
-	RiskZonePolygon riskZone0;
-	riskZone0.vertex_count = 4;
-	riskZone0.lat_vertex = {50.0416403, 50.0416436, 50.0415425, 50.0415099};
-	riskZone0.lon_vertex = {8.6902687, 8.6906747, 8.6907306, 8.6902687};
-	riskZone0.risk_value = 2;
-	riskZones.push_back(riskZone0);
+
+	// RiskZonePolygon riskZone0;
+	// riskZone0.vertex_count = 4;
+	// riskZone0.lat_vertex = {50.0416403, 50.0416436, 50.0415425, 50.0415099};
+	// riskZone0.lon_vertex = {8.6902687, 8.6906747, 8.6907306, 8.6902687};
+	// riskZone0.risk_value = 2;
+	// riskZones.push_back(riskZone0);
 
 	// mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Risk Zone 1 (risk=%d): %.2f", riskZone1.risk_value, riskZone1.lat_vertex[2]);
 
