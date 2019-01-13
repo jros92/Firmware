@@ -55,7 +55,7 @@
 #include <lib/mathlib/mathlib.h>
 //#include <fstream>
 
-#define NUM_RISK_VALUES 4	// Number of risk values; for now we have the values 1,2,3,4; i.e. 4 values
+#define NUM_RISK_CATEGORIES 4	// Number of risk zone categories; for now we have the values 1,2,3,4; i.e. 4 values
 #define MAX_INTERPOLATION_STEP_DISTANCE 0.00000005 // in degrees for lat and lon
 
 class Navigator;
@@ -119,12 +119,24 @@ private:
 			yaw = home_position.yaw;
 			safe_point_index = 0;
 		}
+
+		void set(const vehicle_global_position_s &global_position)
+		{
+			lat = global_position.lat;
+			lon = global_position.lon;
+			alt = global_position.alt;
+			yaw = global_position.yaw;
+			safe_point_index = -1;
+		}
 	};
 
 	RTLPosition _destination; ///< the RTL position to fly to (typically the home position or a safe point)
 
 
-	double risk_weights[4] = {1, 10, 50, 200}; ///< Weighting factors for risk assessment to choose safe point
+	const double RISK_WEIGHTS[NUM_RISK_CATEGORIES] = {0.001, 0.2, 20, 4000}; ///< Weighting factors for risk assessment to choose safe point; value determines the risk value per meter of the trajectory going through a risk zone of a certain category
+	//{1, 10, 50, 200} ///< old values used before
+
+	const double RISK_VALUES_FT[NUM_RISK_CATEGORIES] = {0.1, 200, 100000, 40000000}; ///< Risk Values for Flight Termination (FT) within a zone of a certain risk category
 
 	// Polygon struct for Contingency Management
 	struct RiskZonePolygon {
