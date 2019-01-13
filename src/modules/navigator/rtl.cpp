@@ -141,9 +141,7 @@ RTL::on_activation()
 				risk_dist_to_slz_per_rcat[0][3],
 				min_weighted_risk_for_slzs);
 
-
 	mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] Total Weighted Risk to fly HOME :: %.2f", min_weighted_risk_for_slzs);
-
 
 	// // Store safe points for later
 	// std::vector<mission_safe_point_s> mission_safe_points;
@@ -192,7 +190,6 @@ RTL::on_activation()
 		// 	(double)mission_safe_point.lon, 
 		// 	(double)dist_to_safepoint_meters);
 
-
 		// Check risk for every risk zone
 		for (unsigned current_rz_seq = 0; current_rz_seq < riskZones.size(); ++current_rz_seq) {
 			risk_path_fraction_to_slz_for_rz[current_seq][current_rz_seq] = checkPathAgainstRiskZone(global_position.lat, 
@@ -219,7 +216,6 @@ RTL::on_activation()
 			risk_dist_to_slz_per_rcat[current_seq][2] * RISK_WEIGHTS[2] +
 			risk_dist_to_slz_per_rcat[current_seq][3] * RISK_WEIGHTS[3];
 
-
 		mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), 
 				"[CM] Path to SLZ #%d :: Distances [m]: Total: %.2f, R1: %.2f, R2: %.2f, R3: %.2f, R4: %.2f, Weighted: %.2f", 
 				(int)current_seq,
@@ -229,8 +225,6 @@ RTL::on_activation()
 				risk_dist_to_slz_per_rcat[current_seq][2],
 				risk_dist_to_slz_per_rcat[current_seq][3],
 				weighted_risk_for_slzs[current_seq]);
-
-
 
 		if (weighted_risk_for_slzs[current_seq] < min_weighted_risk_for_slzs) {
 			closest_index = current_seq;
@@ -282,13 +276,10 @@ RTL::on_activation()
 		_destination.yaw = home_position.yaw;
 	}
 
-
 	// float dist_to_safepoint_meters = get_distance_to_next_waypoint(_destination.lat, _destination.lon, global_position.lat, global_position.lon);
-	
 	// float path_riskzone_portion = checkPathAgainstRiskZone(global_position.lat, global_position.lon, _destination.lat, _destination.lon, riskZones[0]);
 	// float path_riskzone_risk_distance = path_riskzone_portion * dist_to_safepoint_meters;
 	// mavlink_and_console_log_info(_navigator->get_mavlink_log_pub(), "[CM] The path to the closest safe point (%d) passes through risk zones %.2f of its total distance, leading to a risk zone distance of %.2f m", (int)closest_index, (double)path_riskzone_portion, (double)path_riskzone_risk_distance);
-
 
 	/* Some state machine stuff and updating status throughout the system*/
 
@@ -776,10 +767,59 @@ RTL::loadRiskZones()
 	riskZones.push_back(riskZone12);
 
 	// Polygon 13
-	// RiskZonePolygon riskZone13;
-	// riskZone13.vertex_count = ;
-	// riskZone13.lat_vertex = {};
-	// riskZone13.lon_vertex = {};
-	// riskZone13.risk_value = ;
-	// riskZones.push_back(riskZone13);
+	RiskZonePolygon riskZone13;
+	riskZone13.vertex_count = 5;
+	riskZone13.lat_vertex = {50.042051327054054, 50.042051327054054, 50.042981512456436, 50.042981512456436, 50.042051327054054};
+	riskZone13.lon_vertex = {8.692460060119627, 8.693114519119261, 8.693114519119261, 8.692460060119627, 8.692460060119627};
+	riskZone13.risk_value = 2;
+	riskZones.push_back(riskZone13);
+
+	// Polygon 14
+	RiskZonePolygon riskZone14;
+	riskZone14.vertex_count = 5;
+	riskZone14.lat_vertex = {50.04206510771006, 50.04206510771006, 50.04247163528284, 50.04247163528284, 50.04206510771006};
+	riskZone14.lon_vertex = {8.693511486053467, 8.69469165802002, 8.69469165802002, 8.693511486053467, 8.693511486053467};
+	riskZone14.risk_value = 2;
+	riskZones.push_back(riskZone14);
+
+	// Polygon 15
+	RiskZonePolygon riskZone15;
+	riskZone15.vertex_count = 5;
+	riskZone15.lat_vertex = {50.04274724523836, 50.04274724523836, 50.04298840265143, 50.04298840265143, 50.04274724523836};
+	riskZone15.lon_vertex = {8.693511486053467, 8.694380521774292, 8.694380521774292,  8.693511486053467,  8.693511486053467};
+	riskZone15.risk_value = 2;
+	riskZones.push_back(riskZone15);
+	
+	// Polygon 16
+	RiskZonePolygon riskZone16;
+	riskZone16.vertex_count = 5;
+	riskZone16.lat_vertex = {50.042561208691936, 50.042561208691936, 50.04300907323047, 50.04300907323047, 50.042561208691936};
+	riskZone16.lon_vertex = {8.694857954978943, 8.695056438446045, 8.695056438446045, 8.694857954978943, 8.69485795497894};
+	riskZone16.risk_value = 2;
+	riskZones.push_back(riskZone16);
+	
+	// Polygon 17
+	RiskZonePolygon riskZone17;
+	riskZone17.vertex_count = 5;
+	riskZone17.lat_vertex = {50.04256465381973, 50.04256465381973, 50.04301251832611, 50.04301251832611, 50.04256465381973};
+	riskZone17.lon_vertex = {8.695115447044373, 8.695212006568907, 8.695212006568907, 8.695115447044373, 8.695115447044373};
+	riskZone17.risk_value = 2;
+	riskZones.push_back(riskZone17);
+	
+	// Polygon 18
+	RiskZonePolygon riskZone18;
+	riskZone18.vertex_count = 6;
+	riskZone18.lat_vertex = {50.04204788188944, 50.04204788188944, 50.04214090124743, 50.04249230608439, 50.04249230608437, 50.04204788188944};
+	riskZone18.lon_vertex = {8.694857954978943, 8.694989383220673, 8.695059120655062, 8.695056438446045, 8.694852590560924, 8.694857954978943};
+	riskZone18.risk_value = 2;
+	riskZones.push_back(riskZone18);
+	
+	// Polygon 19
+	RiskZonePolygon riskZone19;
+	riskZone19.vertex_count = 5;
+	riskZone19.lat_vertex = {50.04217535281579, 50.042361390857536, 50.0424888609514, 50.0424888609514, 50.04217535281579};
+	riskZone19.lon_vertex = {8.695120811462406, 8.695198595523834, 8.695212006568907, 8.695120811462406, 8.695120811462406};
+	riskZone19.risk_value = 2;
+	riskZones.push_back(riskZone19);
+	
 }
